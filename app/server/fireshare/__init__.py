@@ -68,6 +68,7 @@ def create_app(init_schedule=False):
     app.config['DATA_DIRECTORY'] = os.getenv('DATA_DIRECTORY')
     app.config['VIDEO_DIRECTORY'] = os.getenv('VIDEO_DIRECTORY')
     app.config['PROCESSED_DIRECTORY'] = os.getenv('PROCESSED_DIRECTORY')
+    app.config['HLS_DIRECTORY'] = os.getenv('HLS_DIRECTORY')
     app.config['ADMIN_USERNAME'] = os.getenv('ADMIN_USERNAME')
     app.config['ADMIN_PASSWORD'] = os.getenv('ADMIN_PASSWORD')
     app.config['DISABLE_ADMINCREATE'] = bool(os.getenv("DISABLE_ADMINCREATE"))

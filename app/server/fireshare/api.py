@@ -3,16 +3,18 @@ import os, re, string
 import shutil
 import random
 import logging
+import m3u8
 from subprocess import Popen
 from textwrap import indent
-from flask import Blueprint, render_template, request, Response, jsonify, current_app, send_file, redirect
+from flask import Blueprint, render_template, request, Response, jsonify, current_app, send_file, send_from_directory, redirect, make_response
 from flask_login import current_user, login_required
 from flask_cors import CORS
 from sqlalchemy.sql import text
 from pathlib import Path
+from io import BytesIO
 
 
-from . import db
+from . import db, util
 from .models import Video, VideoInfo, VideoView
 from .constants import SUPPORTED_FILE_TYPES
 
@@ -302,6 +304,33 @@ def upload_video():
     file.save(save_path)
     Popen(f"fireshare scan-video --path=\"{save_path}\"", shell=True)
     return Response(status=201)
+    
+@api.route('/api/video/stream/<video_id>/<file>')
+def stream_video(video_id, file):
+    video = Video.query.filter_by(video_id=video_id).first()
+    if not video:
+        raise Exception(f"No video found for {video_id}")
+
+    # Define the path for the HLS directory
+    hls_path = Path(current_app.config['HLS_DIRECTORY'], video_id)
+
+    # Check if it's a request for the playlist (.m3u8) or a segment (.ts)
+    if file.endswith(".m3u8"):
+        # Serve the playlist file
+        playlist_path = hls_path / file
+        if playlist_path.exists():
+            return send_from_directory(playlist_path.parent, file)
+        else:
+            return Response("Playlist not found", status=404)
+    elif file.endswith(".ts"):
+        # Serve the segment file
+        segment_path = hls_path / file
+        if segment_path.exists():
+            return send_from_directory(segment_path.parent, file, mimetype='video/MP2T')
+        else:
+            return Response("Segment not found", status=404)
+
+    return Response("File type not supported", status=400)
 
 @api.route('/api/video')
 def get_video():

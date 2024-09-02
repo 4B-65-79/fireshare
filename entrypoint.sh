@@ -13,6 +13,7 @@ usermod -o -u "$PUID" appuser
 chown -R appuser:appuser $DATA_DIRECTORY
 chown -R appuser:appuser $VIDEO_DIRECTORY
 chown -R appuser:appuser $PROCESSED_DIRECTORY
+chown -R appuser:appuser $HLS_DIRECTORY
 
 su appuser
 
