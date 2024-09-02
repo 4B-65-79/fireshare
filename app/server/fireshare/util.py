@@ -5,6 +5,8 @@ import subprocess as sp
 import xxhash
 from fireshare import logger
 import time
+from flask import current_app
+import m3u8
 
 def lock_exists(path: Path):
     """
@@ -58,13 +60,31 @@ def create_poster(video_path, out_path, second=0):
     e = time.time()
     logger.info(f'Generated poster {str(out_path)} in {e-s}s')
     
+def get_video_codec(video_path):
+    cmd = [
+        'ffprobe', '-v', 'error', '-select_streams', 'v:0', '-show_entries',
+        'stream=codec_name', '-of', 'json', str(video_path)
+    ]
+    result = sp.run(cmd, stdout=sp.PIPE, stderr=sp.PIPE)
+    codec_info = json.loads(result.stdout)
+    return codec_info['streams'][0]['codec_name']
+    
 def convert_video_to_m3u8(video_path, video_id):
+    video_full_path = Path(current_app.config['VIDEO_DIRECTORY'], video_path)
     out_path = Path(current_app.config['HLS_DIRECTORY'], video_id, "video.m3u8")
     if not out_path.parent.exists():
         out_path.parent.mkdir(parents=True)
+    if out_path.exists():
+        logger.info(f"M3U8 file already exists for {video_id}, skipping conversion")
+        return
+    codec = get_video_codec(video_full_path)
+    if codec == 'h264':
+        video_codec_option = ['-c:v', 'copy']
+    else:
+        video_codec_option = ['-c:v', 'libx264', '-crf', '23', '-preset', 'fast']
     s = time.time()
     logger.info(f"Converting video to M3U8")
-    cmd = ['ffmpeg', '-v', 'quiet', '-y', '-i', str(video_path), '-hls_list_size', '0', '-c:v', 'copy', '-c:a', 'copy', str(out_path)]
+    cmd = ['ffmpeg', '-y', '-i', str(video_full_path), '-hls_list_size', '0', *video_codec_option, '-c:a', 'copy', str(out_path)]
     logger.debug(f"$: {' '.join(cmd)}")
     sp.call(cmd)
     e = time.time()

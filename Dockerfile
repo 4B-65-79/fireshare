@@ -14,12 +14,13 @@ WORKDIR /
 RUN apt-get update && apt-get install --no-install-recommends -y \
     nginx nginx-extras supervisor build-essential gcc \
     libc-dev libffi-dev python3-pip ffmpeg python-dev \
-    libldap2-dev libsasl2-dev libssl-dev && rm -rf /var/lib/apt/lists/*;
+    libldap2-dev libsasl2-dev libssl-dev dos2unix && rm -rf /var/lib/apt/lists/*;
 RUN adduser --disabled-password --gecos '' nginx
 RUN ln -sf /dev/stdout /var/log/nginx/access.log \
     && ln -sf /dev/stderr /var/log/nginx/error.log
 RUN mkdir /data && mkdir /processed
 COPY entrypoint.sh /
+RUN dos2unix /entrypoint.sh && chmod +x /entrypoint.sh
 COPY app/nginx/prod.conf /etc/nginx/nginx.conf
 COPY app/server/ /app/server
 COPY migrations/ /migrations

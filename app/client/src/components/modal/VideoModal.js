@@ -1,155 +1,146 @@
-import React from 'react'
-import ReactPlayer from 'react-player'
-import { Button, ButtonGroup, Grid, IconButton, InputAdornment, Modal, Paper, Slide, TextField } from '@mui/material'
-import LinkIcon from '@mui/icons-material/Link'
-import AccessTimeIcon from '@mui/icons-material/AccessTime'
-import ShuffleIcon from '@mui/icons-material/Shuffle'
-import SaveIcon from '@mui/icons-material/Save'
-import CloseIcon from '@mui/icons-material/Close'
-import VisibilityOffIcon from '@mui/icons-material/VisibilityOff'
-import VisibilityIcon from '@mui/icons-material/Visibility'
-import { CopyToClipboard } from 'react-copy-to-clipboard'
-import { copyToClipboard, getPublicWatchUrl, getServedBy, getUrl, getVideoPath } from '../../common/utils'
-import { VideoService } from '../../services'
-import SnackbarAlert from '../alert/SnackbarAlert'
+import React from 'react';
+import ReactPlayer from 'react-player';
+import { Button, ButtonGroup, Grid, IconButton, InputAdornment, Modal, Paper, Slide, TextField } from '@mui/material';
+import LinkIcon from '@mui/icons-material/Link';
+import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import ShuffleIcon from '@mui/icons-material/Shuffle';
+import SaveIcon from '@mui/icons-material/Save';
+import CloseIcon from '@mui/icons-material/Close';
+import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import { CopyToClipboard } from 'react-copy-to-clipboard';
+import { copyToClipboard, getPublicWatchUrl, getServedBy, getUrl } from '../../common/utils';
+import { VideoService } from '../../services';
+import SnackbarAlert from '../alert/SnackbarAlert';
 
-const URL = getUrl()
-const PURL = getPublicWatchUrl()
-const SERVED_BY = getServedBy()
+const URL = getUrl();
+const PURL = getPublicWatchUrl();
+const SERVED_BY = getServedBy();
 
 const VideoModal = ({ open, onClose, videoId, feedView, authenticated, updateCallback }) => {
-  const [title, setTitle] = React.useState('')
-  const [description, setDescription] = React.useState('')
-  const [updateable, setUpdatable] = React.useState(false)
-  const [privateView, setPrivateView] = React.useState(false)
-  const [vid, setVideo] = React.useState(null)
-  const [viewAdded, setViewAdded] = React.useState(false)
-  const [alert, setAlert] = React.useState({ open: false })
+  const [title, setTitle] = React.useState('');
+  const [description, setDescription] = React.useState('');
+  const [updateable, setUpdatable] = React.useState(false);
+  const [privateView, setPrivateView] = React.useState(false);
+  const [vid, setVideo] = React.useState(null);
+  const [viewAdded, setViewAdded] = React.useState(false);
+  const [alert, setAlert] = React.useState({ open: false });
+  const [videoUrl, setVideoUrl] = React.useState(null);
 
-  const playerRef = React.useRef()
+  const playerRef = React.useRef();
 
-  const getRandomVideo = async () => {
+  const fetchVideoDetails = async (videoId) => {
     try {
-      const res = !feedView
-        ? (await VideoService.getRandomVideo()).data
-        : (await VideoService.getRandomPublicVideo()).data
+      const details = (await VideoService.getDetails(videoId)).data;
+      setVideo(details);
+      setTitle(details.info?.title);
+      setDescription(details.info?.description);
+      setPrivateView(details.info?.private);
+      setUpdatable(false);
 
-      setViewAdded(false)
-      setVideo(res)
-      setTitle(res.info?.title)
-      setDescription(res.info?.description)
-      setUpdatable(false)
-      setPrivateView(res.info?.private)
+      const m3u8Url = `${URL}/api/video/stream/${details.video_id}/video.m3u8`;
+      const m3u8Response = await fetch(m3u8Url, { method: 'HEAD' });
+      if (m3u8Response.ok) {
+        setVideoUrl(m3u8Url);
+      } else {
+        const mp4Url = `${URL}/api/video/stream/${details.video_id}/${details.video_id}${details.extension || '.mp4'}`;
+        setVideoUrl(mp4Url);
+      }
     } catch (err) {
-      console.log(err)
+      setAlert({
+        type: 'error',
+        message: 'Unable to load video details',
+        open: true,
+      });
     }
-  }
+  };
 
   React.useEffect(() => {
-    async function fetch() {
-      try {
-        const details = (await VideoService.getDetails(videoId)).data
-        setViewAdded(false)
-        setVideo(details)
-        setTitle(details.info?.title)
-        setDescription(details.info?.description)
-        setPrivateView(details.info?.private)
-        setUpdatable(false)
-      } catch (err) {
-        setAlert(
-          setAlert({
-            type: 'error',
-            message: 'Unable to load video details',
-            open: true,
-          }),
-        )
-      }
+    if (videoId && open) {
+      fetchVideoDetails(videoId);
     }
-    if (videoId) {
-      fetch()
-    }
-  }, [videoId])
+  }, [videoId, open]);
 
   const handleMouseDown = (e) => {
     if (e.button === 1) {
-      window.open(`${PURL}${vid.video_id}`, '_blank')
+      window.open(`${PURL}${vid.video_id}`, '_blank');
     }
-  }
+  };
 
   const update = async () => {
     if (updateable && authenticated) {
       try {
-        await VideoService.updateDetails(vid.video_id, { title, description })
-        setUpdatable(false)
-        updateCallback({ id: vid.video_id, title, description })
+        await VideoService.updateDetails(vid.video_id, { title, description });
+        setUpdatable(false);
+        updateCallback({ id: vid.video_id, title, description });
         setAlert({
           type: 'success',
           message: 'Details Updated',
           open: true,
-        })
+        });
       } catch (err) {
         setAlert({
           type: 'error',
           message: 'An error occurred trying to update the title',
           open: true,
-        })
+        });
       }
     }
-  }
+  };
 
   const handlePrivacyChange = async () => {
     if (authenticated) {
       try {
-        await VideoService.updatePrivacy(vid.video_id, !privateView)
-        updateCallback({ id: vid.video_id, private: !privateView })
+        await VideoService.updatePrivacy(vid.video_id, !privateView);
+        updateCallback({ id: vid.video_id, private: !privateView });
         setAlert({
           type: privateView ? 'info' : 'warning',
           message: privateView ? `Added to your public feed` : `Removed from your public feed`,
           open: true,
-        })
-        setPrivateView(!privateView)
+        });
+        setPrivateView(!privateView);
       } catch (err) {
-        console.log(err)
+        console.log(err);
       }
     }
-  }
+  };
 
   const handleTitleChange = (newValue) => {
     if (newValue) {
-      setUpdatable(newValue !== vid.info?.title || description !== vid.info?.description)
+      setUpdatable(newValue !== vid.info?.title || description !== vid.info?.description);
     }
-    setTitle(newValue)
-  }
+    setTitle(newValue);
+  };
 
   const handleDescriptionChange = (newValue) => {
     if (newValue) {
-      setUpdatable(newValue !== vid.info?.description || title !== vid.info?.title)
+      setUpdatable(newValue !== vid.info?.description || title !== vid.info?.title);
     }
-    setDescription(newValue)
-  }
+    setDescription(newValue);
+  };
 
   const copyTimestamp = () => {
-    copyToClipboard(`${PURL}${vid.video_id}?t=${playerRef.current?.getCurrentTime()}`)
+    copyToClipboard(`${PURL}${vid.video_id}?t=${playerRef.current?.getCurrentTime()}`);
     setAlert({
       type: 'info',
       message: 'Time stamped link copied to clipboard',
       open: true,
-    })
-  }
+    });
+  };
 
   const handleTimeUpdate = (e) => {
     if (!viewAdded) {
       if (!vid.info?.duration || vid.info?.duration < 10) {
-        setViewAdded(true)
-        VideoService.addView(vid?.video_id || videoId).catch((err) => console.error(err))
+        setViewAdded(true);
+        VideoService.addView(vid?.video_id || videoId).catch((err) => console.error(err));
       } else if (e.playedSeconds >= 10) {
-        setViewAdded(true)
-        VideoService.addView(vid?.video_id || videoId).catch((err) => console.error(err))
+        setViewAdded(true);
+        VideoService.addView(vid?.video_id || videoId).catch((err) => console.error(err));
       }
     }
-  }
+  };
 
-  if (!vid) return null
+  if (!vid) return null;
 
   return (
     <>
@@ -181,24 +172,27 @@ const VideoModal = ({ open, onClose, videoId, feedView, authenticated, updateCal
             </IconButton>
             <Grid container justifyContent="center">
               <Grid item xs={12}>
-                <ReactPlayer
-                  ref={playerRef}
-                  width="100%"
-                  height="auto"
-                  url={`${
-                    SERVED_BY === 'nginx'
-                      ? `${URL}/_content/video/${getVideoPath(vid.video_id, vid.extension)}`
-                      : `${URL}/api/video/stream/${vid.video_id}/video.m3u8`
-                  }`}
-                  pip={false}
-                  controls
-                  playing
-                  onProgress={handleTimeUpdate}
-                />
+                {videoUrl && (
+                  <ReactPlayer
+                    ref={playerRef}
+                    width="100%"
+                    height="auto"
+                    url={videoUrl}
+                    pip={false}
+                    controls
+                    playing
+                    config={{
+                      file: {
+                        forceHLS: videoUrl.endsWith('.m3u8'),
+                      },
+                    }}
+                    onProgress={handleTimeUpdate}
+                  />
+                )}
               </Grid>
               <Grid item>
                 <ButtonGroup variant="contained" onClick={(e) => e.stopPropagation()}>
-                  <Button onClick={getRandomVideo}>
+                  <Button onClick={fetchVideoDetails}>
                     <ShuffleIcon />
                   </Button>
                   {authenticated && (
@@ -296,7 +290,7 @@ const VideoModal = ({ open, onClose, videoId, feedView, authenticated, updateCal
         </Slide>
       </Modal>
     </>
-  )
-}
+  );
+};
 
-export default VideoModal
+export default VideoModal;

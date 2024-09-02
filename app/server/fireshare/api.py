@@ -309,28 +309,33 @@ def upload_video():
 def stream_video(video_id, file):
     video = Video.query.filter_by(video_id=video_id).first()
     if not video:
-        raise Exception(f"No video found for {video_id}")
+        return Response(f"No video found for {video_id}", status=404)
 
-    # Define the path for the HLS directory
     hls_path = Path(current_app.config['HLS_DIRECTORY'], video_id)
+    processed_video_path = Path(current_app.config['PROCESSED_DIRECTORY'], "video_links", f"{video_id}{video.extension}")
 
-    # Check if it's a request for the playlist (.m3u8) or a segment (.ts)
     if file.endswith(".m3u8"):
-        # Serve the playlist file
         playlist_path = hls_path / file
         if playlist_path.exists():
             return send_from_directory(playlist_path.parent, file)
         else:
             return Response("Playlist not found", status=404)
+
     elif file.endswith(".ts"):
-        # Serve the segment file
         segment_path = hls_path / file
         if segment_path.exists():
             return send_from_directory(segment_path.parent, file, mimetype='video/MP2T')
         else:
             return Response("Segment not found", status=404)
 
-    return Response("File type not supported", status=400)
+    elif file.endswith(".mp4"):
+        if processed_video_path.exists():
+            return send_from_directory(processed_video_path.parent, processed_video_path.name, mimetype='video/mp4')
+        else:
+            return Response("MP4 file not found", status=404)
+
+    else:
+        return Response("File type not supported", status=400)
 
 @api.route('/api/video')
 def get_video():
