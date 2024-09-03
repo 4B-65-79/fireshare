@@ -28,46 +28,51 @@ const Watch = ({ authenticated }) => {
   const [notFound, setNotFound] = React.useState(false);
   const [views, setViews] = React.useState();
   const [viewAdded, setViewAdded] = React.useState(false);
-  const [videoUrl, setVideoUrl] = React.useState(null); // Add this state
+  const [videoUrl, setVideoUrl] = React.useState(null);
 
   const videoPlayerRef = useRef(null);
   const [alert, setAlert] = React.useState({ open: false });
 
-  React.useEffect(() => {
-    async function fetch() {
-      try {
-        const resp = (await VideoService.getDetails(id)).data;
-        const videoViews = (await VideoService.getViews(id)).data;
-        setDetails(resp);
-        setViews(videoViews);
-        if (!resp.info?.duration || resp.info?.duration < 10) {
-          setViewAdded(true);
-          VideoService.addView(id).catch((err) => console.error(err));
-        }
-        const m3u8Url = `${URL}/api/video/stream/${id}/video.m3u8`;
-        const m3u8Response = await fetch(m3u8Url, { method: 'HEAD' });
-        if (m3u8Response.ok) {
-          setVideoUrl(m3u8Url);
-        } else {
-          const mp4Url = `${URL}/api/video/stream/${id}${details?.extension || '.mp4'}`;
-          setVideoUrl(mp4Url);
-        }
-      } catch (err) {
-        if (err.response && err.response.status === 404) {
-          setNotFound({
-            title: "We're Sorry...",
-            body: "But the video you're looking for was not found.",
-          });
-        } else {
-          setNotFound({
-            title: 'Oops!',
-            body: 'Something somewhere went wrong.',
-          });
-        }
+  const fetchVideoDetails = async (videoId) => {
+    try {
+      const details = (await VideoService.getDetails(videoId)).data;
+      const videoViews = (await VideoService.getViews(videoId)).data;
+      setDetails(details);
+      setViews(videoViews);
+
+      if (!details.info?.duration || details.info?.duration < 10) {
+        setViewAdded(true);
+        VideoService.addView(videoId).catch((err) => console.error(err));
+      }
+
+      const m3u8Url = `${URL}/api/video/stream/${details.video_id}/video.m3u8`;
+      const m3u8Response = await fetch(m3u8Url, { method: 'HEAD' });
+      if (m3u8Response.ok) {
+        setVideoUrl(m3u8Url);
+      } else {
+        const mp4Url = `${URL}/api/video/stream/${details.video_id}/${details.video_id}${details.extension || '.mp4'}`;
+        setVideoUrl(mp4Url);
+      }
+    } catch (err) {
+      if (err.response && err.response.status === 404) {
+        setNotFound({
+          title: "We're Sorry...",
+          body: "But the video you're looking for was not found.",
+        });
+      } else {
+        setNotFound({
+          title: 'Oops!',
+          body: 'Something somewhere went wrong.',
+        });
       }
     }
-    if (details == null) fetch();
-  }, [details, id]);
+  };
+
+  React.useEffect(() => {
+    if (id) {
+      fetchVideoDetails(id);
+    }
+  }, [id]);
 
   const copyTimestamp = () => {
     copyToClipboard(`${PURL}${details?.video_id}?t=${videoPlayerRef.current?.getCurrentTime()}`);
@@ -79,11 +84,9 @@ const Watch = ({ authenticated }) => {
   };
 
   const handleTimeUpdate = (e) => {
-    if (!viewAdded) {
-      if (e.playedSeconds >= 10) {
-        setViewAdded(true);
-        VideoService.addView(id).catch((err) => console.error(err));
-      }
+    if (!viewAdded && e.playedSeconds >= 10) {
+      setViewAdded(true);
+      VideoService.addView(id).catch((err) => console.error(err));
     }
   };
 
